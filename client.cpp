@@ -1,14 +1,21 @@
-#include <unistd.h>
-#include <errno.h>
-#include <error.h>
-#include <netdb.h>
-#include <iostream>
-#include <poll.h>
-#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h> //for networking
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
+#include <netdb.h>
+
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h> //unix standard, for read system call
+#include <stdlib.h> //c standard: for string parsing
+#include <poll.h>
+#include <error.h>
+#include <errno.h>
 
 int menu(char* message, int n, int sock) {
-    if (strcmp(message, "play") == 10) {
+    message[strcspn(message, "\n")] = '\0';
+    if (strcmp(message, "play") == 0) {
         int respond = write(sock, message, strlen(message));
         printf("%d\n", respond);
 		if (respond == 0) {
@@ -57,14 +64,18 @@ int main(int argc, char ** argv){
             char message[256];
 			int len = read(STDIN_FILENO, message, 256);
             printf("Received console command...\n");
-            //printf("wielkossc n %d\n", n);
+            printf("wielkossc n %d\n", len);
+            printf("wielkosc strlen %d\n", strlen(message));
 			int command = menu(message, len, sock);
 		}
 
         if (desc[1].revents & POLLIN) {
             char mess[256];
 			int len = read(sock, mess, 256);
-            printf(" Received %2d bytes: |%s|\n", len, mess);
+            fflush(stdout);
+            if (len > 0) printf("Received data from server: ");
+			for (int i=0;i<len;i++) printf("%02X ", (unsigned char)mess[i]);
+			printf("\n");
         }
     }
 
