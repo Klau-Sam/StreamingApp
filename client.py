@@ -32,7 +32,7 @@ def connect2(s,port):
 
 def run(s, stream):
     data = s.recv(1024)
-    print(data)
+    #print(data)
     while data != '':
         stream.write(data)
 
@@ -40,34 +40,46 @@ def run(s, stream):
     stream.close()
 
 
-def send(sock):
-    filename = 'test.wav'  # In the same folder or path is this file running must the file you want to tranfser to be
+def sendFile(sock,songname):
+    filename = songname  # In the same folder or path is this file running must the file you want to tranfser to be
     f = open(filename, 'rb')
-    l = f.read(2048)
+    l = f.read(4096)
     # print(l)
     # size=(sys.getsizeof(l))
     # print(size)
     # print(size.to_bytes(8, byteorder='big'))
     while (l):
         sock.send(l)
-        print('Sent ', repr(l))
-        l = f.read(2048)
+        #print('Sent ', repr(l))
+        l = f.read(4096)
     f.close()
 
-    print('Done sending')
+def sendMessage(sock,message):
+    sock.send(message)
+
+
+
 
 
 def main():
     silence = True
     communicationSocket = socket.socket()  # creates socket
-    connect2(communicationSocket, 80)  # connects socket via hostname and port from input arguments
+    connect2(communicationSocket, 27)  # connects socket via hostname and port from input arguments
     while True:
         # test()
-
-
+        #message=communicationSocket.recv(1024)
+        #print(message)
         a = input()
         if a == 'send':
-            send(communicationSocket)
+            print('you want to upload new song.')
+            sendMessage(communicationSocket,'send'.encode())
+            message = communicationSocket.recv(1024)
+            print(message)
+            print("Write a name of your song(only .wav format, make sure its in your folder and to include .wav at the end")
+            songname=input()
+            sendMessage(communicationSocket,songname.encode())
+            sendFile(communicationSocket,songname)
+            print("song sent.")
         if a == 'play':
 
             if silence:
@@ -84,6 +96,11 @@ def main():
 
         if a == 'quit':
             Music.terminate()
+
+        # if a == 'edit':
+        #     #prosba o edycje
+
+
 
 
 
