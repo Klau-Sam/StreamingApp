@@ -16,7 +16,7 @@ def createStream(Music):
     return stream
 
 
-def connect2(s):
+def connect2(s,port):
     # host = input()
     # port = int(input())
     # host = "127.0.0.1"
@@ -24,11 +24,11 @@ def connect2(s):
     host = "192.168.1.23"
     # host = "localhost"
     # host = "127.0.0.1"
-    port = 16
+
     # host = "localhost"
     s.connect((host, port))
     # s.send('play'.encode())
-
+    print("connected")
 
 def run(s, stream):
     data = s.recv(1024)
@@ -59,25 +59,36 @@ def send(sock):
 
 def main():
     silence = True
+    communicationSocket = socket.socket()  # creates socket
+    connect2(communicationSocket, 80)  # connects socket via hostname and port from input arguments
     while True:
         # test()
 
-        socket1 = socket.socket()  # creates socket
-        connect2(socket1)  # connects socket via hostname and port from input arguments
-        Music = pyaudio.PyAudio()  # initiate pyaudio variable
-        stream = createStream(Music)
-        if silence:
-            start_new_thread(run, (socket1, stream))
-            silence = False
-        # run(socket1, stream)
-        # Music.terminate()
 
-        while True:
-            a = input()
-            if a == 'send':
-                send(socket1)
-            if a == 'quit':
-                break
+        a = input()
+        if a == 'send':
+            send(communicationSocket)
+        if a == 'play':
+
+            if silence:
+                playSocket = socket.socket()  # creates socket
+                connect2(playSocket, 14)
+                Music = pyaudio.PyAudio()  # initiate pyaudio variable
+                stream = createStream(Music)
+                start_new_thread(run, (playSocket, stream))
+                silence = False
+            else:
+                #Music.terminate()
+                playSocket.close()
+
+
+        if a == 'quit':
+            Music.terminate()
+
+
+
+
+
 
 
 
