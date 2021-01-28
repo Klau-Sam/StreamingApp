@@ -1,4 +1,4 @@
-import socket  # Import socket module
+import socket
 import pyaudio
 import sys
 import time
@@ -6,38 +6,12 @@ from _thread import *
 import os
 import threading
 import time
+import select
+if len(sys.argv) != 4:
+    raise ValueError('Please provide server ip and two ports')
 
-def createStream(Music):
-    stream = Music.open(
-        format=8,
-        channels=2,
-        rate=44100,
-        output=True
-    )
-    return stream
-
-
-def connect2(s, port):
-    host = "192.168.1.23"
-    s.connect((host, port))
-    print("connected")
-def playmusic(stream):
-    global playing
-    print("simea")
-    time.sleep(2)
-    while playing !='':
-
-        #print("simea")
-
-        stream.write(playing)
-        print(playing)
-
-def callback(wf,in_data, frame_count, time_info, status):
-    data = wf.readframes(frame_count)
-    return (data, pyaudio.paContinue)
 
 def run2(s):
-
     data = s.recv(32)
     music = pyaudio.PyAudio()
 
@@ -47,83 +21,42 @@ def run2(s):
         rate=44100,
         output=True
     )
-
     while len(data) > 0:
         stream.write(data)
-        data = s.recv(32)
-
-    # wait for stream to finish (5)
+        try:
+            data = s.recv(32)
+        except:
+            print('stopped playing')
+            break
 
     stream.stop_stream()
     stream.close()
 
-
-    # close PyAudio (7)
-    music.terminate()
-def run(s, stream):
-
-    global playing
-    playing =  s.recv(512)
-    start_new_thread(playmusic,(stream,))
-
-    data = s.recv(512)
-    while data != '':
-
-
-        playing= playing+s.recv(512)
-
-
-        #print(playing)
-
-    stream.close()
-# def run(s, stream):
-#     data = s.recv(16)
-#     # print(data)
-#     #playing = data
-#
-#     while data != '':
-#         stream.write(data)
-#
-#         try:
-#             data = s.recv(16)
-#         except:
-#             print('stopped playing')
-#             break
-#     stream.close()
-
 def sendFile(sock, songname):
     filename = songname  # In the same folder or path is this file running must the file you want to tranfser to be
     f = open(filename, 'rb')
-
     f.seek(0, os.SEEK_END)
     print("Size of file is :", f.tell(), "bytes")
-    size=str(f.tell())
-
+    size = str(f.tell())
     sock.send(size.encode())
-    f.seek(0,0)
+    f.seek(0, 0)
     time.sleep(2)
     l = f.read(32)
-    #file_stats = os.stat(f)
-    current_size = f.tell()
-    print('rozmiar pliku',current_size)
-
-    # print(l)
-    # size=(sys.getsizeof(l))
-    # print(size)
-    # print(size.to_bytes(8, byteorder='big'))
     print("sending, please wait a few seconds")
     while (l):
         sock.send(l)
-        # print('Sent ', repr(l))
         l = f.read(32)
     f.close()
 
-
 def sendMessage(sock, message):
-    sock.send(message)
+    try:
 
+        sock.send(message)
+    except ConnectionAbortedError:
+        print("server shutdown. closing client program")
+        sys.exit(-1)
 
-# def poll(sock):
+# def poll(sock):           #nieudana próba stworzenia ankiety
 #     #mess = sock.recv(1024)
 #     print('siema')
 #     while  not exit_event.is_set():
@@ -144,12 +77,26 @@ def sendMessage(sock, message):
 #     sock.send(ans)
 #     return 0
 
+def checkConnection(socket,host,port):
+    while True:
+        try:
+            socket.fileno()>0
+        except:
+            print("server disconnected.")
+            sys.exit(-1)
 
 def main():
+    host = sys.argv[1]
+    port = int(sys.argv[2])
     silence = True
     communicationSocket = socket.socket()  # creates socket
-    connect2(communicationSocket, 27)  # connects socket via hostname and port from input arguments
+    try:
+        communicationSocket.connect((host, port))
+    except:
+        print("socket timeout. Server not responding. Make sure server is online and you have provided correct arguments")
+        sys.exit(-1)
     # start_new_thread(poll, (communicationSocket,))
+    #start_new_thread(checkConnection, (communicationSocket,host,port))
     init = True
     while True:
 
@@ -158,6 +105,13 @@ def main():
             message = str(message)
             message = message.replace(r'\n', '\n')
             print(message)
+            print("Aviable commands:\n"
+                  "'music' to turn music on and off\n"
+                  "'send' to upload a new song\n"
+                  "'skip' to skip to another song in the playlist \n"
+                  "'list' to display current playlist\n"
+                  "'edit' to change order of the playlist\n"
+                  "'quit' to end the program.")
             init = False
 
         a = input()
@@ -170,73 +124,74 @@ def main():
         #     exit_event.clear()
 
         if a == 'send':
-            print('you want to upload new song.')
             sendMessage(communicationSocket, 'send'.encode())
-
             message = communicationSocket.recv(1024)
             print(message)
-            print(
-                "Write a name of your song(only .wav format, make sure its in your folder and to include .wav at the end")
             songname = input()
             sendMessage(communicationSocket, songname.encode())
             message = communicationSocket.recv(1024)
             print(message)
-
-
             while "That's the ".encode() in message:
                 songname = input()
                 sendMessage(communicationSocket, songname.encode())
-                message = communicationSocket.recv(1024)
-                print(message)
+                if songname=='exit':
+                    print('exiting')
+                    break
+                else:
+                    message = communicationSocket.recv(1024)
+                    print(message)
+
             if "Song already exists".encode() in message:
                 True
             else:
-                sendFile(communicationSocket, songname)
-
-                #sendMessage(communicationSocket, "end".encode())
-                print("song sent.")
+                if not songname=="exit":
+                    sendFile(communicationSocket, songname)
+                    print("song sent.")
+            print('cya')
         if a == 'music':
-
-            print('playing')
+            print("playing music. write 'music' again to stop.")
             if silence:
-                playSocket = socket.socket()  # creates socket
-                connect2(playSocket, 14)
-                # Music = pyaudio.PyAudio()  # initiate pyaudio variable
-                # stream = createStream(Music)
+                port2 = (int(sys.argv[3]))
+                playSocket = socket.socket()  # creates socket for music streaming
+                try:
+                    playSocket.connect((host, port2))
+                except:
+                    print(
+                        "music socket timeout. Make sure server is online and you have provided correct arguments")
+                    return -1
                 start_new_thread(run2, (playSocket,))
-                print("out of thread")
                 silence = False
             else:
-                playSocket.close()
                 silence = True
-
+                playSocket.close()
         if a == 'skip':
-            print('you want to skip some songs.')
             sendMessage(communicationSocket, 'skip'.encode())
             message = communicationSocket.recv(1024)
             print(message)
             if "Sorry".encode() not in message:
                 print("Current song order:")
                 message = communicationSocket.recv(1024)
-                message=str(message)
+                message = str(message)
                 message = message.replace(r'\n', '\n')
                 print(message)
-                print('how many songs you want to skip')
                 songSkip = input()
                 sendMessage(communicationSocket, songSkip.encode())
                 message = communicationSocket.recv(1024)
                 print(message)
-                while "Wrong input values".encode() in message:
+                while "Wrong input value".encode() in message:
                     songSkip = input()
                     sendMessage(communicationSocket, songSkip.encode())
-                    message = communicationSocket.recv(1024)
-                    print(message)
-                print('successfully skipped ', songSkip, 'songs')
-        if a == 'quit':
-            return 0
+                    if songSkip == 'exit':
+                        print('exiting')
+                        break
+
+                    else:
+                        message = communicationSocket.recv(1024)
+                        print(message)
+
 
         if a == 'list':
-            print('receiving list of songs:')
+            print('next songs in the playlist:')
             sendMessage(communicationSocket, 'list'.encode())
             message = communicationSocket.recv(1024)
             message = str(message)
@@ -264,25 +219,17 @@ def main():
                     print('trying again..')
                     songOrderRetry = input()
                     sendMessage(communicationSocket, songOrderRetry.encode())
-                    message = communicationSocket.recv(1024)
-                    print(message)
+                    if songOrderRetry == 'exit':
+                        print('exiting')
+                        break
+                    else:
+                        message = communicationSocket.recv(1024)
+                        print(message)
                 print("success")
-
-        # if a == 'edit':
-        #     #prosba o edycje
-
-
-def test():
-    filename = 'test.wav'  # In the same folder or path is this file running must the file you want to tranfser to be
-    f = open(filename, 'rb')
-    l = f.read(1024)
-    # print(l)
-    size = (sys.getsizeof(l))
-    print(size)
-    # print(size.to_bytes(2, byteorder='big'))
-
-
-# sock.send(size.to_bytes(8, byteorder='big'))
+        if a == 'quit':
+            sendMessage(communicationSocket, 'quit'.encode())
+            print("good bye!")
+            sys.exit(0)
 
 if __name__ == "__main__":
     main()
