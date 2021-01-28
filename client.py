@@ -145,7 +145,14 @@ def main():
                 True
             else:
                 if not songname=="exit":
-                    sendFile(communicationSocket, songname)
+                    while True:
+                        try:
+                            sendFile(communicationSocket, songname)
+                            break
+                        except:
+                            print("no such song in your directory. Try again")
+                            songname=input()
+
                     print("song sent.")
             print('cya')
         if a == 'music':
