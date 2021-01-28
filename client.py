@@ -1,3 +1,4 @@
+# coding=utf-8
 import socket
 import pyaudio
 import sys
@@ -9,7 +10,6 @@ import time
 import select
 if len(sys.argv) != 4:
     raise ValueError('Please provide server ip and two ports')
-
 
 def run2(s):
     data = s.recv(32)
@@ -56,7 +56,7 @@ def sendMessage(sock, message):
         print("server shutdown. closing client program")
         sys.exit(-1)
 
-# def poll(sock):           #nieudana próba stworzenia ankiety
+# def poll(sock):           #nieudana proba stworzenia ankiety
 #     #mess = sock.recv(1024)
 #     print('siema')
 #     while  not exit_event.is_set():
