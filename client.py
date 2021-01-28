@@ -105,7 +105,7 @@ def main():
             message = str(message)
             message = message.replace(r'\n', '\n')
             print(message)
-            print("Aviable commands:\n"
+            print("Avaiable commands:\n"
                   "'music' to turn music on and off\n"
                   "'send' to upload a new song\n"
                   "'skip' to skip to another song in the playlist \n"
