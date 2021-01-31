@@ -35,7 +35,9 @@ atomic<bool> questionnaire(false);
 atomic<bool> changes(false);
 mutex mtx1;
 mutex mtx2;
+atomic<bool> mtx2isLocked(false);
 mutex mtx3;
+atomic<bool> mtx3isLocked(false);
 
 string returnPath() {
     Config cfg;
@@ -332,8 +334,10 @@ void clientService(int clientSock) {
                     break;
                 }
                 mtx3.lock();
+                mtx3isLocked = true;
                 addSong(songName, sizeOfSong, clientSock);
                 mtx3.unlock();
+                mtx3isLocked = false;
             }
         }
 
@@ -353,14 +357,16 @@ void clientService(int clientSock) {
                         break;
                     }
 		        }
-                sleep(0.5);
+                this_thread::sleep_for(500ms);
                 mtx2.lock();
+                mtx2isLocked = true;
                 getPlaylist();
                 respond = write(clientSock, playlist.c_str(), playlist.length());
                 if (respond <= 0) {
                     if (errno == ECONNRESET || errno == EPIPE || errno == EACCES || errno == ENETDOWN) {
                         cout << "write failed!" << endl;
                         mtx2.unlock();
+                        mtx2isLocked = false;
                         close(clientSock);
                         break;
                     }
@@ -371,6 +377,7 @@ void clientService(int clientSock) {
                 if (len == 0 || len == -1) {
                     cout << "Closing client's communication socket." << endl;
                     mtx2.unlock();
+                    mtx2isLocked = false;
                     close(clientSock);
                     break;
                 }
@@ -382,6 +389,7 @@ void clientService(int clientSock) {
                     if (len == 0 || len == -1) {
                         cout << "Closing client's communication socket." << endl;
                         mtx2.unlock();
+                        mtx2isLocked = false;
                         close(clientSock);
                         break;
                     }
@@ -392,6 +400,7 @@ void clientService(int clientSock) {
                 }
                 permission = false;
                 mtx2.unlock();
+                mtx2isLocked = false;
             } else {
                 mtx1.unlock();
                 char answer[] = "Sorry, someone else is changing the order now. Try later.";
@@ -422,14 +431,16 @@ void clientService(int clientSock) {
                         break;
                     }
 		        }
-                sleep(0.5);
+                this_thread::sleep_for(500ms);
                 mtx2.lock();
+                mtx2isLocked = true;
                 getPlaylist();
                 respond = write(clientSock, playlist.c_str(), playlist.length());
                 if (respond <= 0) {
                     if (errno == ECONNRESET || errno == EPIPE || errno == EACCES || errno == ENETDOWN) {
                         cout << "write failed!" << endl;
                         mtx2.unlock();
+                        mtx2isLocked = false;
                         close(clientSock);
                         break;
                     }
@@ -440,6 +451,7 @@ void clientService(int clientSock) {
                 if (len == 0 || len == -1) {
                     cout << "Closing client's communication socket." << endl;
                     mtx2.unlock();
+                    mtx2isLocked = false;
                     close(clientSock);
                     break;
                 }
@@ -450,6 +462,7 @@ void clientService(int clientSock) {
                     if (len == 0 || len == -1) {
                         cout << "Closing client's communication socket." << endl;
                         mtx2.unlock();
+                        mtx2isLocked = false;
                         close(clientSock);
                         break;
                     }
@@ -460,6 +473,7 @@ void clientService(int clientSock) {
                 }
                 permission = false;
                 mtx2.unlock();
+                mtx2isLocked = false;
             } else {
                 mtx1.unlock();
                 char answer[] = "Sorry, someone else is changing the order now. Try later.";
@@ -495,6 +509,41 @@ void clientService(int clientSock) {
     }
 }
 
+/* void checkClientActivity() {
+    char buf[] = "";
+    int respond;
+    while (true) {
+        if (mtx2isLocked == true || mtx2isLocked == true) {
+            this_thread::sleep_for(90000ms);
+        }
+        if (mtx2isLocked == true) {
+            for (int s : sockets) {
+                if ((respond = write(s, buf, sizeof(buf))) == -1) {
+                    if (errno == ECONNRESET) {
+                        mtx2.unlock();
+                        mtx2isLocked = false;
+                        sockets.erase(s);
+                        close(s);
+                    }
+                }
+            }
+        }
+
+        if (mtx3isLocked == true) {
+            for (int s : sockets) {
+                if ((respond = write(s, buf, sizeof(buf))) == -1) {
+                    if (errno == ECONNRESET) {
+                        mtx3.unlock();
+                        mtx3isLocked = false;
+                        sockets.erase(s);
+                        close(s);
+                    }
+                }
+            }
+        }
+    } 
+} */
+
 void handleStreaming(int clientSock) {
     remotes.insert(clientSock);
     printf("Connected to a new music listener.\n");
@@ -523,7 +572,7 @@ void handleConnection(int clientSock) {
     //options[pollopt].fd = clientSock;
     //options[pollopt].events = POLLIN;
     //pollopt++;
-    //sockets.insert(clientSock);
+    sockets.insert(clientSock);
     thread communicateWithClient(clientService, clientSock);
     communicateWithClient.detach();
 }
@@ -534,6 +583,7 @@ void startConnection(int serverSock) {
 	socklen_t clientSize = sizeof(clientAddress);
 	while (true) {
 		clientSock = accept(serverSock, (sockaddr*) &clientAddress, &clientSize); 
+        //if (setsockopt(serverSock, SOL_SOCKET, SO_KEEPALIVE, (void *)&one, sizeof(one))) {};
 		if (clientSock < 0){
 			// printf("could not connect to client - errno: %d, but still trying.\n", errno);
             if ((errno == ENETDOWN || errno == EPROTO || errno == ENOPROTOOPT || errno == EHOSTDOWN || errno == ENONET || errno == EHOSTUNREACH || errno == EOPNOTSUPP || errno == ENETUNREACH)) {
@@ -586,15 +636,19 @@ int main(int argc, char ** argv){
     
     int serverSock = createSock(port1);
     thread basicConnection(startConnection, serverSock);
+    basicConnection.detach();
     
     int musicSock = createSock(port2);
     thread forMusicListener(startStreaming, musicSock);
     forMusicListener.detach();
-    
-    string directoryPath = returnPath();
 
+    //thread checkingClients(checkClientActivity);
+    //checkingClients.detach();
     //thread playMusic(dontStopTheMusic, directoryPath);
     //playMusic.detach();
+    
+    string directoryPath = returnPath();
+    
     while (true) {
         cout << "Please don't stop the music :)" << endl;
     
